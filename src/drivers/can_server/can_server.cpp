@@ -27,6 +27,7 @@
 #include <net/if.h>
 
 #include <tgf.h>
+#include <tgfclient.h>
 #include <track.h>
 #include <car.h>
 #include <raceman.h>
@@ -44,6 +45,7 @@
 
 #define CAN_BUS_SENSORS 0
 #define CAN_BUS_CONTROL 1
+#define CAN_BUS_CTRLOUT 2
 
 #define CAN_ID_FUEL_GEAR_RPM       0x001
 #define CAN_ID_POS                 0x002
@@ -112,11 +114,15 @@ static int RESTARTING[NBBOTS];
 static tdble prevDist[NBBOTS];
 static tdble distRaced[NBBOTS];
 
+static int currentKey[256];
+static int currentSKey[256];
+
 static int cansend(int socket, canid_t identifier, const void *data, size_t size);
 static int canpoll(int socket, can_frame *output);
 static void initTrack(int index, tTrack* track, void *carHandle, void **carParmHandle, tSituation *s);
 static void newrace(int index, tCarElt* car, tSituation *s);
 static void drive(int index, tCarElt* car, tSituation *s);
+static void drive_inputs(int index, tCarElt* car, tSituation *s);
 static void endrace(int index, tCarElt *car, tSituation *s);
 static void shutdown(int index);
 static int  InitFuncPt(int index, void *pt);
@@ -148,6 +154,12 @@ static const canid_t can_tx_msgboxes_ids[NBCANTXMSGBOXES] = {
     0x010, 0x011, 0x012, 0x013, 0x014,
     0x020, 0x021, 0x022,
 };
+
+static float clampf(float x, float m, float M) {
+    if (x < m) return m;
+    if (x > M) return M;
+    return x;
+}
 
 #define CLAMP_BITS(x, b, s) ((((1ULL << (b)) - 1) & ((uint64_t)(x))) << (s))
 
@@ -196,71 +208,71 @@ static void prepare_can_frame_wheels(int index, float wheels[NBWHEELS]) {
 
 static void prepare_can_frame_obstacles(int index, float obstacle[NBOBSTACLESENSORS]) {
     can_tx_msgboxes[index][TXMSGBOX_OBSTACLE_SENSORS_A] =
-        CLAMP_BITS(255.0f * MAX(MIN(obstacle[0], 1.0f), 0.0f), 8, 0) |
-        CLAMP_BITS(255.0f * MAX(MIN(obstacle[1], 1.0f), 0.0f), 8, 8) |
-        CLAMP_BITS(255.0f * MAX(MIN(obstacle[2], 1.0f), 0.0f), 8, 16) |
-        CLAMP_BITS(255.0f * MAX(MIN(obstacle[3], 1.0f), 0.0f), 8, 24) |
-        CLAMP_BITS(255.0f * MAX(MIN(obstacle[4], 1.0f), 0.0f), 8, 32) |
-        CLAMP_BITS(255.0f * MAX(MIN(obstacle[5], 1.0f), 0.0f), 8, 40) |
-        CLAMP_BITS(255.0f * MAX(MIN(obstacle[6], 1.0f), 0.0f), 8, 48) |
-        CLAMP_BITS(255.0f * MAX(MIN(obstacle[7], 1.0f), 0.0f), 8, 56);
+        CLAMP_BITS(255.0f * clampf(obstacle[0], 0.0f, 1.0f), 8, 0) |
+        CLAMP_BITS(255.0f * clampf(obstacle[1], 0.0f, 1.0f), 8, 8) |
+        CLAMP_BITS(255.0f * clampf(obstacle[2], 0.0f, 1.0f), 8, 16) |
+        CLAMP_BITS(255.0f * clampf(obstacle[3], 0.0f, 1.0f), 8, 24) |
+        CLAMP_BITS(255.0f * clampf(obstacle[4], 0.0f, 1.0f), 8, 32) |
+        CLAMP_BITS(255.0f * clampf(obstacle[5], 0.0f, 1.0f), 8, 40) |
+        CLAMP_BITS(255.0f * clampf(obstacle[6], 0.0f, 1.0f), 8, 48) |
+        CLAMP_BITS(255.0f * clampf(obstacle[7], 0.0f, 1.0f), 8, 56);
     can_tx_msgboxes[index][TXMSGBOX_OBSTACLE_SENSORS_B] =
-        CLAMP_BITS(255.0f * MAX(MIN(obstacle[8], 1.0f), 0.0f), 8, 0) |
-        CLAMP_BITS(255.0f * MAX(MIN(obstacle[9], 1.0f), 0.0f), 8, 8) |
-        CLAMP_BITS(255.0f * MAX(MIN(obstacle[10], 1.0f), 0.0f), 8, 16) |
-        CLAMP_BITS(255.0f * MAX(MIN(obstacle[11], 1.0f), 0.0f), 8, 24) |
-        CLAMP_BITS(255.0f * MAX(MIN(obstacle[12], 1.0f), 0.0f), 8, 32) |
-        CLAMP_BITS(255.0f * MAX(MIN(obstacle[13], 1.0f), 0.0f), 8, 40) |
-        CLAMP_BITS(255.0f * MAX(MIN(obstacle[14], 1.0f), 0.0f), 8, 48) |
-        CLAMP_BITS(255.0f * MAX(MIN(obstacle[15], 1.0f), 0.0f), 8, 56);
+        CLAMP_BITS(255.0f * clampf(obstacle[8], 0.0f, 1.0f), 8, 0) |
+        CLAMP_BITS(255.0f * clampf(obstacle[9], 0.0f, 1.0f), 8, 8) |
+        CLAMP_BITS(255.0f * clampf(obstacle[10], 0.0f, 1.0f), 8, 16) |
+        CLAMP_BITS(255.0f * clampf(obstacle[11], 0.0f, 1.0f), 8, 24) |
+        CLAMP_BITS(255.0f * clampf(obstacle[12], 0.0f, 1.0f), 8, 32) |
+        CLAMP_BITS(255.0f * clampf(obstacle[13], 0.0f, 1.0f), 8, 40) |
+        CLAMP_BITS(255.0f * clampf(obstacle[14], 0.0f, 1.0f), 8, 48) |
+        CLAMP_BITS(255.0f * clampf(obstacle[15], 0.0f, 1.0f), 8, 56);
     can_tx_msgboxes[index][TXMSGBOX_OBSTACLE_SENSORS_C] =
-        CLAMP_BITS(255.0f * MAX(MIN(obstacle[16], 1.0f), 0.0f), 8, 0) |
-        CLAMP_BITS(255.0f * MAX(MIN(obstacle[17], 1.0f), 0.0f), 8, 8) |
-        CLAMP_BITS(255.0f * MAX(MIN(obstacle[18], 1.0f), 0.0f), 8, 16) |
-        CLAMP_BITS(255.0f * MAX(MIN(obstacle[19], 1.0f), 0.0f), 8, 24) |
-        CLAMP_BITS(255.0f * MAX(MIN(obstacle[20], 1.0f), 0.0f), 8, 32) |
-        CLAMP_BITS(255.0f * MAX(MIN(obstacle[21], 1.0f), 0.0f), 8, 40) |
-        CLAMP_BITS(255.0f * MAX(MIN(obstacle[22], 1.0f), 0.0f), 8, 48) |
-        CLAMP_BITS(255.0f * MAX(MIN(obstacle[23], 1.0f), 0.0f), 8, 56);
+        CLAMP_BITS(255.0f * clampf(obstacle[16], 0.0f, 1.0f), 8, 0) |
+        CLAMP_BITS(255.0f * clampf(obstacle[17], 0.0f, 1.0f), 8, 8) |
+        CLAMP_BITS(255.0f * clampf(obstacle[18], 0.0f, 1.0f), 8, 16) |
+        CLAMP_BITS(255.0f * clampf(obstacle[19], 0.0f, 1.0f), 8, 24) |
+        CLAMP_BITS(255.0f * clampf(obstacle[20], 0.0f, 1.0f), 8, 32) |
+        CLAMP_BITS(255.0f * clampf(obstacle[21], 0.0f, 1.0f), 8, 40) |
+        CLAMP_BITS(255.0f * clampf(obstacle[22], 0.0f, 1.0f), 8, 48) |
+        CLAMP_BITS(255.0f * clampf(obstacle[23], 0.0f, 1.0f), 8, 56);
     can_tx_msgboxes[index][TXMSGBOX_OBSTACLE_SENSORS_D] =
-        CLAMP_BITS(255.0f * MAX(MIN(obstacle[24], 1.0f), 0.0f), 8, 0) |
-        CLAMP_BITS(255.0f * MAX(MIN(obstacle[25], 1.0f), 0.0f), 8, 8) |
-        CLAMP_BITS(255.0f * MAX(MIN(obstacle[26], 1.0f), 0.0f), 8, 16) |
-        CLAMP_BITS(255.0f * MAX(MIN(obstacle[27], 1.0f), 0.0f), 8, 24) |
-        CLAMP_BITS(255.0f * MAX(MIN(obstacle[28], 1.0f), 0.0f), 8, 32) |
-        CLAMP_BITS(255.0f * MAX(MIN(obstacle[29], 1.0f), 0.0f), 8, 40) |
-        CLAMP_BITS(255.0f * MAX(MIN(obstacle[30], 1.0f), 0.0f), 8, 48) |
-        CLAMP_BITS(255.0f * MAX(MIN(obstacle[31], 1.0f), 0.0f), 8, 56);
+        CLAMP_BITS(255.0f * clampf(obstacle[24], 0.0f, 1.0f), 8, 0) |
+        CLAMP_BITS(255.0f * clampf(obstacle[25], 0.0f, 1.0f), 8, 8) |
+        CLAMP_BITS(255.0f * clampf(obstacle[26], 0.0f, 1.0f), 8, 16) |
+        CLAMP_BITS(255.0f * clampf(obstacle[27], 0.0f, 1.0f), 8, 24) |
+        CLAMP_BITS(255.0f * clampf(obstacle[28], 0.0f, 1.0f), 8, 32) |
+        CLAMP_BITS(255.0f * clampf(obstacle[29], 0.0f, 1.0f), 8, 40) |
+        CLAMP_BITS(255.0f * clampf(obstacle[30], 0.0f, 1.0f), 8, 48) |
+        CLAMP_BITS(255.0f * clampf(obstacle[31], 0.0f, 1.0f), 8, 56);
     can_tx_msgboxes[index][TXMSGBOX_OBSTACLE_SENSORS_E] =
-        CLAMP_BITS(255.0f * MAX(MIN(obstacle[32], 1.0f), 0.0f), 8, 0) |
-        CLAMP_BITS(255.0f * MAX(MIN(obstacle[33], 1.0f), 0.0f), 8, 8) |
-        CLAMP_BITS(255.0f * MAX(MIN(obstacle[34], 1.0f), 0.0f), 8, 16) |
-        CLAMP_BITS(255.0f * MAX(MIN(obstacle[35], 1.0f), 0.0f), 8, 24);
+        CLAMP_BITS(255.0f * clampf(obstacle[32], 0.0f, 1.0f), 8, 0) |
+        CLAMP_BITS(255.0f * clampf(obstacle[33], 0.0f, 1.0f), 8, 8) |
+        CLAMP_BITS(255.0f * clampf(obstacle[34], 0.0f, 1.0f), 8, 16) |
+        CLAMP_BITS(255.0f * clampf(obstacle[35], 0.0f, 1.0f), 8, 24);
 }
 
 static void prepare_can_frame_track_sensors(int index, float sensor[NBTRACKSENSORS]) {
     can_tx_msgboxes[index][TXMSGBOX_TRACKSENS_A] =
-        CLAMP_BITS(255.0f * MAX(MIN(sensor[0], 1.0f), 0.0f), 8, 0) |
-        CLAMP_BITS(255.0f * MAX(MIN(sensor[1], 1.0f), 0.0f), 8, 8) |
-        CLAMP_BITS(255.0f * MAX(MIN(sensor[2], 1.0f), 0.0f), 8, 16) |
-        CLAMP_BITS(255.0f * MAX(MIN(sensor[3], 1.0f), 0.0f), 8, 24) |
-        CLAMP_BITS(255.0f * MAX(MIN(sensor[4], 1.0f), 0.0f), 8, 32) |
-        CLAMP_BITS(255.0f * MAX(MIN(sensor[5], 1.0f), 0.0f), 8, 40) |
-        CLAMP_BITS(255.0f * MAX(MIN(sensor[6], 1.0f), 0.0f), 8, 48) |
-        CLAMP_BITS(255.0f * MAX(MIN(sensor[7], 1.0f), 0.0f), 8, 56);
+        CLAMP_BITS(255.0f * clampf(sensor[0], 0.0f, 1.0f), 8, 0) |
+        CLAMP_BITS(255.0f * clampf(sensor[1], 0.0f, 1.0f), 8, 8) |
+        CLAMP_BITS(255.0f * clampf(sensor[2], 0.0f, 1.0f), 8, 16) |
+        CLAMP_BITS(255.0f * clampf(sensor[3], 0.0f, 1.0f), 8, 24) |
+        CLAMP_BITS(255.0f * clampf(sensor[4], 0.0f, 1.0f), 8, 32) |
+        CLAMP_BITS(255.0f * clampf(sensor[5], 0.0f, 1.0f), 8, 40) |
+        CLAMP_BITS(255.0f * clampf(sensor[6], 0.0f, 1.0f), 8, 48) |
+        CLAMP_BITS(255.0f * clampf(sensor[7], 0.0f, 1.0f), 8, 56);
     can_tx_msgboxes[index][TXMSGBOX_TRACKSENS_B] =
-        CLAMP_BITS(255.0f * MAX(MIN(sensor[8], 1.0f), 0.0f), 8, 0) |
-        CLAMP_BITS(255.0f * MAX(MIN(sensor[9], 1.0f), 0.0f), 8, 8) |
-        CLAMP_BITS(255.0f * MAX(MIN(sensor[10], 1.0f), 0.0f), 8, 16) |
-        CLAMP_BITS(255.0f * MAX(MIN(sensor[11], 1.0f), 0.0f), 8, 24) |
-        CLAMP_BITS(255.0f * MAX(MIN(sensor[12], 1.0f), 0.0f), 8, 32) |
-        CLAMP_BITS(255.0f * MAX(MIN(sensor[13], 1.0f), 0.0f), 8, 40) |
-        CLAMP_BITS(255.0f * MAX(MIN(sensor[14], 1.0f), 0.0f), 8, 48) |
-        CLAMP_BITS(255.0f * MAX(MIN(sensor[15], 1.0f), 0.0f), 8, 56);
+        CLAMP_BITS(255.0f * clampf(sensor[8], 0.0f, 1.0f), 8, 0) |
+        CLAMP_BITS(255.0f * clampf(sensor[9], 0.0f, 1.0f), 8, 8) |
+        CLAMP_BITS(255.0f * clampf(sensor[10], 0.0f, 1.0f), 8, 16) |
+        CLAMP_BITS(255.0f * clampf(sensor[11], 0.0f, 1.0f), 8, 24) |
+        CLAMP_BITS(255.0f * clampf(sensor[12], 0.0f, 1.0f), 8, 32) |
+        CLAMP_BITS(255.0f * clampf(sensor[13], 0.0f, 1.0f), 8, 40) |
+        CLAMP_BITS(255.0f * clampf(sensor[14], 0.0f, 1.0f), 8, 48) |
+        CLAMP_BITS(255.0f * clampf(sensor[15], 0.0f, 1.0f), 8, 56);
     can_tx_msgboxes[index][TXMSGBOX_TRACKSENS_C] =
-        CLAMP_BITS(255.0f * MAX(MIN(sensor[16], 1.0f), 0.0f), 8, 0) |
-        CLAMP_BITS(255.0f * MAX(MIN(sensor[17], 1.0f), 0.0f), 8, 8) |
-        CLAMP_BITS(255.0f * MAX(MIN(sensor[18], 1.0f), 0.0f), 8, 16);
+        CLAMP_BITS(255.0f * clampf(sensor[16], 0.0f, 1.0f), 8, 0) |
+        CLAMP_BITS(255.0f * clampf(sensor[17], 0.0f, 1.0f), 8, 8) |
+        CLAMP_BITS(255.0f * clampf(sensor[18], 0.0f, 1.0f), 8, 16);
 }
 
 /*
@@ -314,7 +326,11 @@ initTrack(int index, tTrack* track, void *carHandle, void **carParmHandle, tSitu
 static void
 newrace(int index, tCarElt* car, tSituation *s)
 {
+
     total_tics[index]=0;
+
+	memset(currentKey, 0, sizeof(currentKey));
+	memset(currentSKey, 0, sizeof(currentSKey));
 
     //Set sensor range
     if (strcmp(getVersion(),"2009")==0)
@@ -377,6 +393,7 @@ newrace(int index, tCarElt* car, tSituation *s)
 static void
 drive(int index, tCarElt* car, tSituation *s)
 {
+    drive_inputs(index, car, s);
     total_tics[index]++;
 
     // computing distance to middle
@@ -454,7 +471,7 @@ drive(int index, tCarElt* car, tSituation *s)
         prepare_can_frame_speed(index, speed_x, speed_y, speed_z);
 
         uint16_t uangle = (uint16_t) ((1 << 16) * angle / (PI * 2));
-        int16_t distToMiddle = (int16_t) (INT16_MAX * MIN(MAX(dist_to_middle, -1), 1));
+        int16_t distToMiddle = (int16_t) (INT16_MAX * clampf(dist_to_middle, -1.0f, 1.0f));
         prepare_can_frame_angle(index, uangle, distToMiddle);
 
         uint32_t curLapTime = (uint32_t) (car->_curLapTime * 256);
@@ -543,6 +560,8 @@ shutdown(int index)
     for (int busIndex = 0; busIndex < NBBUSES; busIndex++) {
         CLOSE(canSocket[index][busIndex]);
     }
+    GfuiKeyEventRegisterCurrent(NULL);
+    GfuiSKeyEventRegisterCurrent(NULL);
 }
 
 double normRand(double avg,double std)
@@ -629,4 +648,55 @@ static int can_update(int index) {
         }
     }
     return total_messages;
+}
+
+static int onKeyAction(unsigned char key, int modifier, int state) {
+	currentKey[key] = state;
+	return 0;
+}
+
+static int onSKeyAction(int key, int modifier, int state) {
+	currentSKey[key] = state;
+	return 0;
+}
+
+static void drive_inputs(int index, tCarElt* car, tSituation *s) {
+    static int first_time = 1;
+    static float intensity[4] = {0, 0, 0, 0};
+
+    if (first_time) {
+        first_time = 0;
+		GfuiKeyEventRegisterCurrent(onKeyAction);
+		GfuiSKeyEventRegisterCurrent(onSKeyAction);
+    }
+
+    float steerPressed = (currentKey['a'] == GFUI_KEY_DOWN ? -1.0f : 0.0f)
+                       + (currentKey['d'] == GFUI_KEY_DOWN ? 1.0f : 0.0f);
+    float upPressed    = currentKey['w'] == GFUI_KEY_DOWN ? 1.0f : 0.0f;
+    float downPressed  = currentKey['s'] == GFUI_KEY_DOWN ? 1.0f : 0.0f;
+    float spacePressed = currentKey[' '] == GFUI_KEY_DOWN ? 1.0f : 0.0f;
+    intensity[0] = clampf(intensity[0] * 0.8f + steerPressed * 0.25f, -1.0f, 1.0f);
+    intensity[1] = clampf(intensity[1] * 0.8f + upPressed    * 0.2f + (upPressed    - 0.5f) * 0.1f,  0.0f, 1.0f);
+    intensity[2] = clampf(intensity[2] * 0.8f + downPressed  * 0.2f + (downPressed  - 0.5f) * 0.1f,  0.0f, 1.0f);
+    intensity[3] = clampf(intensity[3] * 0.8f + spacePressed * 0.2f + (spacePressed - 0.5f) * 0.1f,  0.0f, 1.0f);
+    int8_t gear = 0x7f;
+    if (currentKey['0'] == GFUI_KEY_DOWN) { gear = 0; };
+    if (currentKey['1'] == GFUI_KEY_DOWN) { gear = 1; };
+    if (currentKey['2'] == GFUI_KEY_DOWN) { gear = 2; };
+    if (currentKey['3'] == GFUI_KEY_DOWN) { gear = 3; };
+    if (currentKey['4'] == GFUI_KEY_DOWN) { gear = 4; };
+    if (currentKey['5'] == GFUI_KEY_DOWN) { gear = 5; };
+    if (currentKey['6'] == GFUI_KEY_DOWN) { gear = 6; };
+    if (currentKey['7'] == GFUI_KEY_DOWN) { gear = -1; };
+    if (gear != 0x7f) {
+        cansend(canSocket[index][CAN_BUS_CTRLOUT], CAN_ID_CMD_GEAR, &gear, 1);
+    }
+    int8_t steerCtrl = (int8_t) (intensity[0] * 127.0f);
+    uint8_t accelCtrl = (uint8_t) (intensity[1] * 255.0f);
+    uint8_t brakeCtrl = (uint8_t) (intensity[2] * 255.0f);
+    uint8_t clutchCtrl = (uint8_t) (intensity[3] * 255.0f);
+    cansend(canSocket[index][CAN_BUS_CTRLOUT], CAN_ID_CMD_STEER, &steerCtrl, 1);
+    cansend(canSocket[index][CAN_BUS_CTRLOUT], CAN_ID_CMD_ACCEL, &accelCtrl, 1);
+    cansend(canSocket[index][CAN_BUS_CTRLOUT], CAN_ID_CMD_BRAKE, &brakeCtrl, 1);
+    cansend(canSocket[index][CAN_BUS_CTRLOUT], CAN_ID_CMD_CLUTCH, &clutchCtrl, 1);
 }
