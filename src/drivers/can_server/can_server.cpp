@@ -35,6 +35,7 @@
 #include <robot.h>
 #include "sensors.h"
 #include "ObstacleSensors.h"
+#include "dbc_funcs.h"
 
 
 #define NBWHEELS 4
@@ -46,29 +47,6 @@
 #define CAN_BUS_SENSORS 0
 #define CAN_BUS_CONTROL 1
 #define CAN_BUS_CTRLOUT 2
-
-#define CAN_ID_FUEL_GEAR_RPM       0x001
-#define CAN_ID_POS                 0x002
-#define CAN_ID_DISTRACED           0x003
-#define CAN_ID_LAPTIME             0x004
-#define CAN_ID_ANGLE               0x005
-#define CAN_ID_SPEED               0x006
-#define CAN_ID_DAMMAGE             0x007
-#define CAN_ID_WHEELSPINVEL        0x008
-#define CAN_ID_OBSTACLE_SENSORS_A  0x010
-#define CAN_ID_OBSTACLE_SENSORS_B  0x011
-#define CAN_ID_OBSTACLE_SENSORS_C  0x012
-#define CAN_ID_OBSTACLE_SENSORS_D  0x013
-#define CAN_ID_OBSTACLE_SENSORS_E  0x014
-#define CAN_ID_TRACKSENS_A         0x020
-#define CAN_ID_TRACKSENS_B         0x021
-#define CAN_ID_TRACKSENS_C         0x022
-
-#define CAN_ID_CMD_ACCEL     0x401
-#define CAN_ID_CMD_BRAKE     0x402
-#define CAN_ID_CMD_GEAR      0x403
-#define CAN_ID_CMD_STEER     0x404
-#define CAN_ID_CMD_CLUTCH    0x405
 
 #define TXMSGBOX_FUEL_GEAR_RPM        0
 #define TXMSGBOX_POS                  1
@@ -88,13 +66,6 @@
 #define TXMSGBOX_TRACKSENS_C         15
 #define NBCANTXMSGBOXES              16
 
-#define RXMSGBOX_ACCEL   0
-#define RXMSGBOX_BRAKE   1
-#define RXMSGBOX_GEAR    2
-#define RXMSGBOX_STEER   3
-#define RXMSGBOX_CLUTCH  4
-#define NBCANRXMSGBOXES  5
-
 typedef int SOCKET;
 typedef struct sockaddr_in tSockAddrIn;
 #define CLOSE(x) close(x)
@@ -113,6 +84,7 @@ static int RESTARTING[NBBOTS];
 
 static tdble prevDist[NBBOTS];
 static tdble distRaced[NBBOTS];
+static can_obj_dbc_funcs_h_t can_obj_dbc_funcs;
 
 static int currentKey[256];
 static int currentSKey[256];
@@ -143,136 +115,13 @@ static const char* botname[NBBOTS] = {"can_server 1", "can_server 2", "can_serve
 static unsigned long total_tics[NBBOTS];
 
 static uint64_t can_tx_msgboxes[NBBOTS][NBCANTXMSGBOXES];
-static uint64_t can_rx_msgboxes[NBBOTS][NBCANRXMSGBOXES];
-static const unsigned can_tx_msgboxes_dlc[NBCANTXMSGBOXES] = {
-    7, 8, 8, 8, 4, 6, 4, 8,
-    8, 8, 8, 8, 4,
-    8, 8, 3
-};
-static const canid_t can_tx_msgboxes_ids[NBCANTXMSGBOXES] = {
-    0x001, 0x002, 0x003, 0x004, 0x005, 0x006, 0x007, 0x008,
-    0x010, 0x011, 0x012, 0x013, 0x014,
-    0x020, 0x021, 0x022,
-};
+static unsigned can_tx_msgboxes_dlc[NBCANTXMSGBOXES] = {};
+static canid_t can_tx_msgboxes_ids[NBCANTXMSGBOXES] = {};
 
 static float clampf(float x, float m, float M) {
     if (x < m) return m;
     if (x > M) return M;
     return x;
-}
-
-#define CLAMP_BITS(x, b, s) ((((1ULL << (b)) - 1) & ((uint64_t)(x))) << (s))
-
-static void prepare_can_frame_fuel_gear_rpm(int index, uint32_t fuel, uint8_t gear, uint32_t rpm) {
-    can_tx_msgboxes[index][TXMSGBOX_FUEL_GEAR_RPM] =
-        CLAMP_BITS(fuel, 29, 0) | CLAMP_BITS(gear, 3, 29) | CLAMP_BITS(rpm, 24, 32);
-}
-
-static void prepare_can_frame_pos(int index, int32_t pos, uint32_t pos_z) {
-    can_tx_msgboxes[index][TXMSGBOX_POS] =
-        CLAMP_BITS(pos, 32, 0) | CLAMP_BITS(pos_z, 32, 32);
-}
-
-static void prepare_can_frame_dist_raced(int index, uint32_t curDistRaced, uint32_t distFromStartLine) {
-    can_tx_msgboxes[index][TXMSGBOX_DISTRACED] =
-        CLAMP_BITS(curDistRaced, 32, 0) | CLAMP_BITS(distFromStartLine, 32, 32);
-}
-
-static void prepare_can_frame_lap_time(int index, uint32_t curLapTime, uint32_t lastLapTime) {
-    can_tx_msgboxes[index][TXMSGBOX_LAPTIME] =
-        CLAMP_BITS(curLapTime, 32, 0) | CLAMP_BITS(lastLapTime, 32, 32);
-}
-
-static void prepare_can_frame_angle(int index, uint16_t uangle, int16_t distToMiddle) {
-    can_tx_msgboxes[index][TXMSGBOX_ANGLE] =
-        CLAMP_BITS(uangle, 16, 0) | CLAMP_BITS(distToMiddle, 16, 16);
-}
-
-static void prepare_can_frame_speed(int index, uint16_t speed_x, uint16_t speed_y, uint16_t speed_z) {
-    can_tx_msgboxes[index][TXMSGBOX_SPEED] =
-        CLAMP_BITS(speed_x, 16, 0) | CLAMP_BITS(speed_y, 16, 16) | CLAMP_BITS(speed_z, 16, 32);
-}
-
-static void prepare_can_frame_damage(int index, int dammage) {
-    can_tx_msgboxes[index][TXMSGBOX_DAMMAGE] =
-        CLAMP_BITS(dammage, 32, 0);
-}
-
-static void prepare_can_frame_wheels(int index, float wheels[NBWHEELS]) {
-    can_tx_msgboxes[index][TXMSGBOX_WHEELSPINVEL] =
-        CLAMP_BITS((uint16_t) (wheels[0] * 60.0f / (2 * PI)), 16, 0) |
-        CLAMP_BITS((uint16_t) (wheels[1] * 60.0f / (2 * PI)), 16, 16) |
-        CLAMP_BITS((uint16_t) (wheels[2] * 60.0f / (2 * PI)), 16, 32) |
-        CLAMP_BITS((uint16_t) (wheels[3] * 60.0f / (2 * PI)), 16, 48);
-}
-
-static void prepare_can_frame_obstacles(int index, float obstacle[NBOBSTACLESENSORS]) {
-    can_tx_msgboxes[index][TXMSGBOX_OBSTACLE_SENSORS_A] =
-        CLAMP_BITS(255.0f * clampf(obstacle[0], 0.0f, 1.0f), 8, 0) |
-        CLAMP_BITS(255.0f * clampf(obstacle[1], 0.0f, 1.0f), 8, 8) |
-        CLAMP_BITS(255.0f * clampf(obstacle[2], 0.0f, 1.0f), 8, 16) |
-        CLAMP_BITS(255.0f * clampf(obstacle[3], 0.0f, 1.0f), 8, 24) |
-        CLAMP_BITS(255.0f * clampf(obstacle[4], 0.0f, 1.0f), 8, 32) |
-        CLAMP_BITS(255.0f * clampf(obstacle[5], 0.0f, 1.0f), 8, 40) |
-        CLAMP_BITS(255.0f * clampf(obstacle[6], 0.0f, 1.0f), 8, 48) |
-        CLAMP_BITS(255.0f * clampf(obstacle[7], 0.0f, 1.0f), 8, 56);
-    can_tx_msgboxes[index][TXMSGBOX_OBSTACLE_SENSORS_B] =
-        CLAMP_BITS(255.0f * clampf(obstacle[8], 0.0f, 1.0f), 8, 0) |
-        CLAMP_BITS(255.0f * clampf(obstacle[9], 0.0f, 1.0f), 8, 8) |
-        CLAMP_BITS(255.0f * clampf(obstacle[10], 0.0f, 1.0f), 8, 16) |
-        CLAMP_BITS(255.0f * clampf(obstacle[11], 0.0f, 1.0f), 8, 24) |
-        CLAMP_BITS(255.0f * clampf(obstacle[12], 0.0f, 1.0f), 8, 32) |
-        CLAMP_BITS(255.0f * clampf(obstacle[13], 0.0f, 1.0f), 8, 40) |
-        CLAMP_BITS(255.0f * clampf(obstacle[14], 0.0f, 1.0f), 8, 48) |
-        CLAMP_BITS(255.0f * clampf(obstacle[15], 0.0f, 1.0f), 8, 56);
-    can_tx_msgboxes[index][TXMSGBOX_OBSTACLE_SENSORS_C] =
-        CLAMP_BITS(255.0f * clampf(obstacle[16], 0.0f, 1.0f), 8, 0) |
-        CLAMP_BITS(255.0f * clampf(obstacle[17], 0.0f, 1.0f), 8, 8) |
-        CLAMP_BITS(255.0f * clampf(obstacle[18], 0.0f, 1.0f), 8, 16) |
-        CLAMP_BITS(255.0f * clampf(obstacle[19], 0.0f, 1.0f), 8, 24) |
-        CLAMP_BITS(255.0f * clampf(obstacle[20], 0.0f, 1.0f), 8, 32) |
-        CLAMP_BITS(255.0f * clampf(obstacle[21], 0.0f, 1.0f), 8, 40) |
-        CLAMP_BITS(255.0f * clampf(obstacle[22], 0.0f, 1.0f), 8, 48) |
-        CLAMP_BITS(255.0f * clampf(obstacle[23], 0.0f, 1.0f), 8, 56);
-    can_tx_msgboxes[index][TXMSGBOX_OBSTACLE_SENSORS_D] =
-        CLAMP_BITS(255.0f * clampf(obstacle[24], 0.0f, 1.0f), 8, 0) |
-        CLAMP_BITS(255.0f * clampf(obstacle[25], 0.0f, 1.0f), 8, 8) |
-        CLAMP_BITS(255.0f * clampf(obstacle[26], 0.0f, 1.0f), 8, 16) |
-        CLAMP_BITS(255.0f * clampf(obstacle[27], 0.0f, 1.0f), 8, 24) |
-        CLAMP_BITS(255.0f * clampf(obstacle[28], 0.0f, 1.0f), 8, 32) |
-        CLAMP_BITS(255.0f * clampf(obstacle[29], 0.0f, 1.0f), 8, 40) |
-        CLAMP_BITS(255.0f * clampf(obstacle[30], 0.0f, 1.0f), 8, 48) |
-        CLAMP_BITS(255.0f * clampf(obstacle[31], 0.0f, 1.0f), 8, 56);
-    can_tx_msgboxes[index][TXMSGBOX_OBSTACLE_SENSORS_E] =
-        CLAMP_BITS(255.0f * clampf(obstacle[32], 0.0f, 1.0f), 8, 0) |
-        CLAMP_BITS(255.0f * clampf(obstacle[33], 0.0f, 1.0f), 8, 8) |
-        CLAMP_BITS(255.0f * clampf(obstacle[34], 0.0f, 1.0f), 8, 16) |
-        CLAMP_BITS(255.0f * clampf(obstacle[35], 0.0f, 1.0f), 8, 24);
-}
-
-static void prepare_can_frame_track_sensors(int index, float sensor[NBTRACKSENSORS]) {
-    can_tx_msgboxes[index][TXMSGBOX_TRACKSENS_A] =
-        CLAMP_BITS(255.0f * clampf(sensor[0], 0.0f, 1.0f), 8, 0) |
-        CLAMP_BITS(255.0f * clampf(sensor[1], 0.0f, 1.0f), 8, 8) |
-        CLAMP_BITS(255.0f * clampf(sensor[2], 0.0f, 1.0f), 8, 16) |
-        CLAMP_BITS(255.0f * clampf(sensor[3], 0.0f, 1.0f), 8, 24) |
-        CLAMP_BITS(255.0f * clampf(sensor[4], 0.0f, 1.0f), 8, 32) |
-        CLAMP_BITS(255.0f * clampf(sensor[5], 0.0f, 1.0f), 8, 40) |
-        CLAMP_BITS(255.0f * clampf(sensor[6], 0.0f, 1.0f), 8, 48) |
-        CLAMP_BITS(255.0f * clampf(sensor[7], 0.0f, 1.0f), 8, 56);
-    can_tx_msgboxes[index][TXMSGBOX_TRACKSENS_B] =
-        CLAMP_BITS(255.0f * clampf(sensor[8], 0.0f, 1.0f), 8, 0) |
-        CLAMP_BITS(255.0f * clampf(sensor[9], 0.0f, 1.0f), 8, 8) |
-        CLAMP_BITS(255.0f * clampf(sensor[10], 0.0f, 1.0f), 8, 16) |
-        CLAMP_BITS(255.0f * clampf(sensor[11], 0.0f, 1.0f), 8, 24) |
-        CLAMP_BITS(255.0f * clampf(sensor[12], 0.0f, 1.0f), 8, 32) |
-        CLAMP_BITS(255.0f * clampf(sensor[13], 0.0f, 1.0f), 8, 40) |
-        CLAMP_BITS(255.0f * clampf(sensor[14], 0.0f, 1.0f), 8, 48) |
-        CLAMP_BITS(255.0f * clampf(sensor[15], 0.0f, 1.0f), 8, 56);
-    can_tx_msgboxes[index][TXMSGBOX_TRACKSENS_C] =
-        CLAMP_BITS(255.0f * clampf(sensor[16], 0.0f, 1.0f), 8, 0) |
-        CLAMP_BITS(255.0f * clampf(sensor[17], 0.0f, 1.0f), 8, 8) |
-        CLAMP_BITS(255.0f * clampf(sensor[18], 0.0f, 1.0f), 8, 16);
 }
 
 /*
@@ -282,6 +131,23 @@ extern "C" int
     can_server(tModInfo *modInfo)
 {
     memset(modInfo, 0, 10*sizeof(tModInfo));
+
+    can_tx_msgboxes_ids[TXMSGBOX_FUEL_GEAR_RPM] = 0x400;
+    can_tx_msgboxes_ids[TXMSGBOX_DAMMAGE] = 0x401;
+    can_tx_msgboxes_ids[TXMSGBOX_WHEELSPINVEL] = 0x402;
+    can_tx_msgboxes_ids[TXMSGBOX_SPEED] = 0x403;
+    can_tx_msgboxes_ids[TXMSGBOX_POS] = 0x404;
+    can_tx_msgboxes_ids[TXMSGBOX_ANGLE] = 0x405;
+    can_tx_msgboxes_ids[TXMSGBOX_LAPTIME] = 0x406;
+    can_tx_msgboxes_ids[TXMSGBOX_DISTRACED] = 0x407;
+    can_tx_msgboxes_ids[TXMSGBOX_OBSTACLE_SENSORS_A] = 0x300;
+    can_tx_msgboxes_ids[TXMSGBOX_OBSTACLE_SENSORS_B] = 0x301;
+    can_tx_msgboxes_ids[TXMSGBOX_OBSTACLE_SENSORS_C] = 0x302;
+    can_tx_msgboxes_ids[TXMSGBOX_OBSTACLE_SENSORS_D] = 0x303;
+    can_tx_msgboxes_ids[TXMSGBOX_OBSTACLE_SENSORS_E] = 0x304;
+    can_tx_msgboxes_ids[TXMSGBOX_TRACKSENS_A] = 0x500;
+    can_tx_msgboxes_ids[TXMSGBOX_TRACKSENS_B] = 0x501;
+    can_tx_msgboxes_ids[TXMSGBOX_TRACKSENS_C] = 0x502;
 
 	for (int i = 0; i < NBBOTS; i++) {
 		modInfo[i].name    = strdup(botname[i]);  // name of the module (short).
@@ -456,39 +322,108 @@ drive(int index, tCarElt* car, tSituation *s)
     distRaced[index] += curDistRaced;
 
 
+    can_obj_dbc_funcs_h_t *o = &can_obj_dbc_funcs;
     {
-        uint32_t fuel = (uint32_t) (car->_fuel * 256 * 256);
-        uint8_t gear = (uint8_t) car->_gear;
-        uint32_t rpm = (uint32_t) car->_enginerpm * 256;
-        prepare_can_frame_fuel_gear_rpm(index, fuel, gear, rpm);
 
-        int dammage = getDamageLimit() ? car->_dammage : car->_fakeDammage;
-        prepare_can_frame_damage(index, dammage);
+        encode_can_0x401_Damage(o, getDamageLimit() ? car->_dammage : car->_fakeDammage);
+        pack_message(o, can_tx_msgboxes_ids[TXMSGBOX_DAMMAGE], &can_tx_msgboxes[index][TXMSGBOX_DAMMAGE]);
 
-        uint16_t speed_x = (uint16_t) (car->_speed_x * 256);
-        uint16_t speed_y = (uint16_t) (car->_speed_y * 256);
-        uint16_t speed_z = (uint16_t) (car->_speed_z * 256);
-        prepare_can_frame_speed(index, speed_x, speed_y, speed_z);
+        encode_can_0x405_DistanceFromMiddle(o, clampf(dist_to_middle, -1.0f, 1.0f));
+        encode_can_0x405_Angle(o, angle);
+        pack_message(o, can_tx_msgboxes_ids[TXMSGBOX_ANGLE], &can_tx_msgboxes[index][TXMSGBOX_ANGLE]);
 
-        uint16_t uangle = (uint16_t) ((1 << 16) * angle / (PI * 2));
-        int16_t distToMiddle = (int16_t) (INT16_MAX * clampf(dist_to_middle, -1.0f, 1.0f));
-        prepare_can_frame_angle(index, uangle, distToMiddle);
+        encode_can_0x400_FuelLevel(o, car->_fuel);
+        encode_can_0x400_EngineSpeed(o, car->_enginerpm);
+        encode_can_0x400_Gear(o, car->_gear);
+        pack_message(o, can_tx_msgboxes_ids[TXMSGBOX_FUEL_GEAR_RPM], &can_tx_msgboxes[index][TXMSGBOX_FUEL_GEAR_RPM]);
 
-        uint32_t curLapTime = (uint32_t) (car->_curLapTime * 256);
-        uint32_t lastLapTime = (uint32_t) (car->_lastLapTime * 256);
-        prepare_can_frame_lap_time(index, curLapTime, lastLapTime);
+        encode_can_0x403_SpeedX(o, car->_speed_x);
+        encode_can_0x403_SpeedY(o, car->_speed_y);
+        encode_can_0x403_SpeedZ(o, car->_speed_z);
+        pack_message(o, can_tx_msgboxes_ids[TXMSGBOX_SPEED], &can_tx_msgboxes[index][TXMSGBOX_SPEED]);
 
-        uint32_t distFromStartLine = (uint32_t) (car->race.distFromStartLine * 256);
-        uint32_t curDistRaced = (uint32_t) (distRaced[index] * 256);
-        prepare_can_frame_dist_raced(index, curDistRaced, distFromStartLine);
+        encode_can_0x406_CurrentLapTime(o, car->_curLapTime);
+        encode_can_0x406_LastLapTime(o, car->_lastLapTime);
+        pack_message(o, can_tx_msgboxes_ids[TXMSGBOX_LAPTIME], &can_tx_msgboxes[index][TXMSGBOX_LAPTIME]);
 
-        int32_t pos = car->race.pos;
-        uint32_t pos_z = (uint32_t) (256 * (car->_pos_Z - RtTrackHeightL(&(car->_trkPos))));
-        prepare_can_frame_pos(index, pos, pos_z);
+        encode_can_0x407_DistanceFromStartLine(o, car->race.distFromStartLine);
+        encode_can_0x407_CurrentDistanceRaced(o, distRaced[index]);
+        pack_message(o, can_tx_msgboxes_ids[TXMSGBOX_DISTRACED], &can_tx_msgboxes[index][TXMSGBOX_DISTRACED]);
 
-        prepare_can_frame_wheels(index, wheelSpinVel);
-        prepare_can_frame_obstacles(index, oppSensorOut);
-        prepare_can_frame_track_sensors(index, trackSensorOut);
+        encode_can_0x404_Position(o, car->race.pos);
+        encode_can_0x404_PositionZ(o, car->_pos_Z - RtTrackHeightL(&(car->_trkPos)));
+        pack_message(o, can_tx_msgboxes_ids[TXMSGBOX_POS], &can_tx_msgboxes[index][TXMSGBOX_POS]);
+
+        encode_can_0x402_WheelSpin0(o, wheelSpinVel[0] * 60.0f / (2 * PI));
+        encode_can_0x402_WheelSpin1(o, wheelSpinVel[1] * 60.0f / (2 * PI));
+        encode_can_0x402_WheelSpin2(o, wheelSpinVel[2] * 60.0f / (2 * PI));
+        encode_can_0x402_WheelSpin3(o, wheelSpinVel[3] * 60.0f / (2 * PI));
+        pack_message(o, can_tx_msgboxes_ids[TXMSGBOX_WHEELSPINVEL], &can_tx_msgboxes[index][TXMSGBOX_WHEELSPINVEL]);
+
+        encode_can_0x300_ObstacleSensor0 (o, oppSensorOut[0 ]);
+        encode_can_0x300_ObstacleSensor1 (o, oppSensorOut[1 ]);
+        encode_can_0x300_ObstacleSensor2 (o, oppSensorOut[2 ]);
+        encode_can_0x300_ObstacleSensor3 (o, oppSensorOut[3 ]);
+        encode_can_0x300_ObstacleSensor4 (o, oppSensorOut[4 ]);
+        encode_can_0x300_ObstacleSensor5 (o, oppSensorOut[5 ]);
+        encode_can_0x300_ObstacleSensor6 (o, oppSensorOut[6 ]);
+        encode_can_0x300_ObstacleSensor7 (o, oppSensorOut[7 ]);
+        pack_message(o, can_tx_msgboxes_ids[TXMSGBOX_OBSTACLE_SENSORS_A], &can_tx_msgboxes[index][TXMSGBOX_OBSTACLE_SENSORS_A]);
+        encode_can_0x301_ObstacleSensor8 (o, oppSensorOut[8 ]);
+        encode_can_0x301_ObstacleSensor9 (o, oppSensorOut[9 ]);
+        encode_can_0x301_ObstacleSensor10(o, oppSensorOut[10]);
+        encode_can_0x301_ObstacleSensor11(o, oppSensorOut[11]);
+        encode_can_0x301_ObstacleSensor12(o, oppSensorOut[12]);
+        encode_can_0x301_ObstacleSensor13(o, oppSensorOut[13]);
+        encode_can_0x301_ObstacleSensor14(o, oppSensorOut[14]);
+        encode_can_0x301_ObstacleSensor15(o, oppSensorOut[15]);
+        pack_message(o, can_tx_msgboxes_ids[TXMSGBOX_OBSTACLE_SENSORS_B], &can_tx_msgboxes[index][TXMSGBOX_OBSTACLE_SENSORS_B]);
+        encode_can_0x302_ObstacleSensor16(o, oppSensorOut[16]);
+        encode_can_0x302_ObstacleSensor17(o, oppSensorOut[17]);
+        encode_can_0x302_ObstacleSensor18(o, oppSensorOut[18]);
+        encode_can_0x302_ObstacleSensor19(o, oppSensorOut[19]);
+        encode_can_0x302_ObstacleSensor20(o, oppSensorOut[20]);
+        encode_can_0x302_ObstacleSensor21(o, oppSensorOut[21]);
+        encode_can_0x302_ObstacleSensor22(o, oppSensorOut[22]);
+        encode_can_0x302_ObstacleSensor23(o, oppSensorOut[23]);
+        pack_message(o, can_tx_msgboxes_ids[TXMSGBOX_OBSTACLE_SENSORS_C], &can_tx_msgboxes[index][TXMSGBOX_OBSTACLE_SENSORS_C]);
+        encode_can_0x303_ObstacleSensor24(o, oppSensorOut[24]);
+        encode_can_0x303_ObstacleSensor25(o, oppSensorOut[25]);
+        encode_can_0x303_ObstacleSensor26(o, oppSensorOut[26]);
+        encode_can_0x303_ObstacleSensor27(o, oppSensorOut[27]);
+        encode_can_0x303_ObstacleSensor28(o, oppSensorOut[28]);
+        encode_can_0x303_ObstacleSensor29(o, oppSensorOut[29]);
+        encode_can_0x303_ObstacleSensor30(o, oppSensorOut[30]);
+        encode_can_0x303_ObstacleSensor31(o, oppSensorOut[31]);
+        pack_message(o, can_tx_msgboxes_ids[TXMSGBOX_OBSTACLE_SENSORS_D], &can_tx_msgboxes[index][TXMSGBOX_OBSTACLE_SENSORS_D]);
+        encode_can_0x304_ObstacleSensor32(o, oppSensorOut[32]);
+        encode_can_0x304_ObstacleSensor33(o, oppSensorOut[33]);
+        encode_can_0x304_ObstacleSensor34(o, oppSensorOut[34]);
+        encode_can_0x304_ObstacleSensor35(o, oppSensorOut[35]);
+        pack_message(o, can_tx_msgboxes_ids[TXMSGBOX_OBSTACLE_SENSORS_E], &can_tx_msgboxes[index][TXMSGBOX_OBSTACLE_SENSORS_E]);
+
+        encode_can_0x500_TrackSensor0 (o, trackSensorOut[0 ]);
+        encode_can_0x500_TrackSensor1 (o, trackSensorOut[1 ]);
+        encode_can_0x500_TrackSensor2 (o, trackSensorOut[2 ]);
+        encode_can_0x500_TrackSensor3 (o, trackSensorOut[3 ]);
+        encode_can_0x500_TrackSensor4 (o, trackSensorOut[4 ]);
+        encode_can_0x500_TrackSensor5 (o, trackSensorOut[5 ]);
+        encode_can_0x500_TrackSensor6 (o, trackSensorOut[6 ]);
+        encode_can_0x500_TrackSensor7 (o, trackSensorOut[7 ]);
+        pack_message(o, can_tx_msgboxes_ids[TXMSGBOX_TRACKSENS_A], &can_tx_msgboxes[index][TXMSGBOX_TRACKSENS_A]);
+        encode_can_0x501_TrackSensor8 (o, trackSensorOut[8 ]);
+        encode_can_0x501_TrackSensor9 (o, trackSensorOut[9 ]);
+        encode_can_0x501_TrackSensor10(o, trackSensorOut[10]);
+        encode_can_0x501_TrackSensor11(o, trackSensorOut[11]);
+        encode_can_0x501_TrackSensor12(o, trackSensorOut[12]);
+        encode_can_0x501_TrackSensor13(o, trackSensorOut[13]);
+        encode_can_0x501_TrackSensor14(o, trackSensorOut[14]);
+        encode_can_0x501_TrackSensor15(o, trackSensorOut[15]);
+        pack_message(o, can_tx_msgboxes_ids[TXMSGBOX_TRACKSENS_B], &can_tx_msgboxes[index][TXMSGBOX_TRACKSENS_B]);
+        encode_can_0x502_TrackSensor16(o, trackSensorOut[16]);
+        encode_can_0x502_TrackSensor17(o, trackSensorOut[17]);
+        encode_can_0x502_TrackSensor18(o, trackSensorOut[18]);
+        pack_message(o, can_tx_msgboxes_ids[TXMSGBOX_TRACKSENS_C], &can_tx_msgboxes[index][TXMSGBOX_TRACKSENS_C]);
     }
 
     if (RESTARTING[index]==0)
@@ -497,11 +432,20 @@ drive(int index, tCarElt* car, tSituation *s)
         std::cout << "Sending: " << line << std::endl;
 #endif
 
-        car->_accelCmd  = ((uint8_t *) &can_rx_msgboxes[RXMSGBOX_ACCEL ])[0] / 255.0f;
-        car->_brakeCmd  = ((uint8_t *) &can_rx_msgboxes[RXMSGBOX_BRAKE ])[0] / 255.0f;
-        car->_gearCmd   = "\x00\x01\x02\x03\x04\x05\x06\xff"[((uint8_t *) &can_rx_msgboxes[RXMSGBOX_GEAR  ])[0] & 7];
-        car->_steerCmd  = ((int8_t  *) &can_rx_msgboxes[RXMSGBOX_STEER ])[0] / 127.0f;
-        car->_clutchCmd = ((uint8_t *) &can_rx_msgboxes[RXMSGBOX_CLUTCH])[0] / 255.0f;
+        double accel, brake, clutch, steer;
+        uint8_t gear;
+
+        decode_can_0x080_Accel(o, &accel);
+        decode_can_0x080_Brake(o, &brake);
+        decode_can_0x080_Clutch(o, &clutch);
+        decode_can_0x080_Steer(o, &steer);
+        decode_can_0x080_Gear(o, &gear);
+
+        car->_brakeCmd = brake;
+        car->_accelCmd = accel;
+        car->_clutchCmd = clutch;
+        car->_steerCmd = steer;
+        car->_gearCmd = "\x00\x01\x02\x03\x04\x05\x06\xff"[gear & 7];
     }
 
     if (can_update(index)) {
@@ -564,7 +508,7 @@ shutdown(int index)
     GfuiSKeyEventRegisterCurrent(NULL);
 }
 
-double normRand(double avg,double std)
+static double normRand(double avg,double std)
 {
 	 double x1, x2, w, y1, y2;
 
@@ -638,14 +582,8 @@ static int can_update(int index) {
     {
         total_messages++;
         // Set controls command and store them in variables
-        switch (frame.can_id) {
-            case CAN_ID_CMD_ACCEL : memcpy(can_rx_msgboxes[RXMSGBOX_ACCEL ], frame.data, 8); break;
-            case CAN_ID_CMD_BRAKE : memcpy(can_rx_msgboxes[RXMSGBOX_BRAKE ], frame.data, 8); break;
-            case CAN_ID_CMD_GEAR  : memcpy(can_rx_msgboxes[RXMSGBOX_GEAR  ], frame.data, 8); break;
-            case CAN_ID_CMD_STEER : memcpy(can_rx_msgboxes[RXMSGBOX_STEER ], frame.data, 8); break;
-            case CAN_ID_CMD_CLUTCH: memcpy(can_rx_msgboxes[RXMSGBOX_CLUTCH], frame.data, 8); break;
-            default: break;
-        }
+        can_obj_dbc_funcs_h_t *o = &can_obj_dbc_funcs;
+        unpack_message(o, frame.can_id, *(uint64_t *) &frame.data, frame.len, 0);
     }
     return total_messages;
 }
@@ -663,6 +601,8 @@ static int onSKeyAction(int key, int modifier, int state) {
 static void drive_inputs(int index, tCarElt* car, tSituation *s) {
     static int first_time = 1;
     static float intensity[4] = {0, 0, 0, 0};
+    static uint8_t currentGear = 0;
+    static bool gearWasSwitching = false;
 
     if (first_time) {
         first_time = 0;
@@ -670,8 +610,8 @@ static void drive_inputs(int index, tCarElt* car, tSituation *s) {
 		GfuiSKeyEventRegisterCurrent(onSKeyAction);
     }
 
-    float steerPressed = (currentKey['a'] == GFUI_KEY_DOWN ? -1.0f : 0.0f)
-                       + (currentKey['d'] == GFUI_KEY_DOWN ? 1.0f : 0.0f);
+    float steerPressed = (currentKey['d'] == GFUI_KEY_DOWN ? -1.0f : 0.0f)
+                       + (currentKey['a'] == GFUI_KEY_DOWN ? 1.0f : 0.0f);
     float upPressed    = currentKey['w'] == GFUI_KEY_DOWN ? 1.0f : 0.0f;
     float downPressed  = currentKey['s'] == GFUI_KEY_DOWN ? 1.0f : 0.0f;
     float spacePressed = currentKey[' '] == GFUI_KEY_DOWN ? 1.0f : 0.0f;
@@ -679,24 +619,26 @@ static void drive_inputs(int index, tCarElt* car, tSituation *s) {
     intensity[1] = clampf(intensity[1] * 0.8f + upPressed    * 0.2f + (upPressed    - 0.5f) * 0.1f,  0.0f, 1.0f);
     intensity[2] = clampf(intensity[2] * 0.8f + downPressed  * 0.2f + (downPressed  - 0.5f) * 0.1f,  0.0f, 1.0f);
     intensity[3] = clampf(intensity[3] * 0.8f + spacePressed * 0.2f + (spacePressed - 0.5f) * 0.1f,  0.0f, 1.0f);
-    int8_t gear = 0x7f;
-    if (currentKey['0'] == GFUI_KEY_DOWN) { gear = 0; };
-    if (currentKey['1'] == GFUI_KEY_DOWN) { gear = 1; };
-    if (currentKey['2'] == GFUI_KEY_DOWN) { gear = 2; };
-    if (currentKey['3'] == GFUI_KEY_DOWN) { gear = 3; };
-    if (currentKey['4'] == GFUI_KEY_DOWN) { gear = 4; };
-    if (currentKey['5'] == GFUI_KEY_DOWN) { gear = 5; };
-    if (currentKey['6'] == GFUI_KEY_DOWN) { gear = 6; };
-    if (currentKey['7'] == GFUI_KEY_DOWN) { gear = -1; };
-    if (gear != 0x7f) {
-        cansend(canSocket[index][CAN_BUS_CTRLOUT], CAN_ID_CMD_GEAR, &gear, 1);
+
+    bool gearUpPressed    = currentKey['e'] == GFUI_KEY_DOWN;
+    bool gearDownPressed  = currentKey['q'] == GFUI_KEY_DOWN;
+    if (!gearWasSwitching) {
+        if (gearUpPressed) {
+            currentGear = (currentGear + 1) & 0x7;
+        } else if (gearDownPressed) {
+            currentGear = (currentGear - 1) & 0x7;
+        }
     }
-    int8_t steerCtrl = (int8_t) (intensity[0] * 127.0f);
-    uint8_t accelCtrl = (uint8_t) (intensity[1] * 255.0f);
-    uint8_t brakeCtrl = (uint8_t) (intensity[2] * 255.0f);
-    uint8_t clutchCtrl = (uint8_t) (intensity[3] * 255.0f);
-    cansend(canSocket[index][CAN_BUS_CTRLOUT], CAN_ID_CMD_STEER, &steerCtrl, 1);
-    cansend(canSocket[index][CAN_BUS_CTRLOUT], CAN_ID_CMD_ACCEL, &accelCtrl, 1);
-    cansend(canSocket[index][CAN_BUS_CTRLOUT], CAN_ID_CMD_BRAKE, &brakeCtrl, 1);
-    cansend(canSocket[index][CAN_BUS_CTRLOUT], CAN_ID_CMD_CLUTCH, &clutchCtrl, 1);
+    gearWasSwitching = gearUpPressed || gearDownPressed;
+
+    can_obj_dbc_funcs_h_t *o = &can_obj_dbc_funcs;
+    encode_can_0x080_Steer(o, intensity[0]);
+    encode_can_0x080_Accel(o, intensity[1]);
+    encode_can_0x080_Brake(o, intensity[2]);
+    encode_can_0x080_Clutch(o, intensity[3]);
+    encode_can_0x080_Gear(o, currentGear);
+    uint64_t d = 0;
+    if (-1 != pack_message(o, 0x80, &d)) {
+        cansend(canSocket[index][CAN_BUS_CTRLOUT], 0x80, &d, 5);
+    }
 }

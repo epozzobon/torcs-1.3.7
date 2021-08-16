@@ -1,0 +1,222 @@
+VERSION "HIPBNYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY/4/%%%/4/'%**4YYY///"
+
+
+NS_ : 
+	NS_DESC_
+	CM_
+	BA_DEF_
+	BA_
+	VAL_
+	CAT_DEF_
+	CAT_
+	FILTER
+	BA_DEF_DEF_
+	EV_DATA_
+	ENVVAR_DATA_
+	SGTYPE_
+	SGTYPE_VAL_
+	BA_DEF_SGTYPE_
+	BA_SGTYPE_
+	SIG_TYPE_REF_
+	VAL_TABLE_
+	SIG_GROUP_
+	SIG_VALTYPE_
+	SIGTYPE_VALTYPE_
+
+BS_:
+
+BU_: TorcsCar CAN_driver
+
+
+BO_ 1024 FuelGearEngine: 8 TorcsCar
+ SG_ FuelLevel : 0|29@1+ (0.0000152587890625,0) [0|100] "l" Vector__XXX
+ SG_ Gear : 29|3@1+ (1,-1) [-1|6] "(unit)" Vector_XXX
+ SG_ EngineSpeed : 32|24@1+ (0.00390625,0) [0|10000] "RPM" Vector__XXX
+
+BO_ 1025 CarDamage: 8 TorcsCar
+ SG_ Damage : 0|32@1+ (1,0) [0|0] "(unit)" Vector__XXX
+
+BO_ 1026 WheelSpinVelocity: 8 TorcsCar
+ SG_ WheelSpin0 : 0|16@1+ (1,-20000) [-20000|20000] "RPM" Vector__XXX
+ SG_ WheelSpin1 : 16|16@1+ (1,-20000) [-20000|20000] "RPM" Vector__XXX
+ SG_ WheelSpin2 : 32|16@1+ (1,-20000) [-20000|20000] "RPM" Vector__XXX
+ SG_ WheelSpin3 : 48|16@1+ (1,-20000) [-20000|20000] "RPM" Vector__XXX
+
+BO_ 1027 Speed: 8 TorcsCar
+ SG_ SpeedX :  0|21@1+ (0.001,-1000) [-1000|1000] "m/s" Vector__XXX
+ SG_ SpeedY : 21|21@1+ (0.001,-1000) [-1000|1000] "m/s" Vector__XXX
+ SG_ SpeedZ : 42|21@1+ (0.001,-1000) [-1000|1000] "m/s" Vector__XXX
+
+BO_ 1028 Position: 8 TorcsCar
+ SG_ Position : 0|32@1+ (1,0) [0|0] "(unit)" Vector__XXX
+ SG_ PositionZ : 32|32@1+ (1,0) [-20000|20000] "m" Vector__XXX
+
+BO_ 1029 AngleAndOffset: 8 TorcsCar
+ SG_ Angle : 0|16@1+ (0.0001,0) [0|6.28318531] "rad" Vector__XXX
+ SG_ DistanceFromMiddle : 16|16@1+ (0.00005,-1) [-1|1] "(unit)" Vector__XXX
+
+BO_ 1030 LapTime: 8 TorcsCar
+ SG_ CurrentLapTime : 0|32@1+ (1,0) [0|3600] "s" Vector__XXX
+ SG_ LastLapTime : 32|32@1+ (1,0) [0|3600] "s" Vector__XXX
+
+BO_ 1031 DistanceRaced: 8 TorcsCar
+ SG_ DistanceFromStartLine : 0|32@1+ (1,0) [0|100000] "m" Vector__XXX
+ SG_ CurrentDistanceRaced : 32|32@1+ (1,0) [0|100000] "m" Vector__XXX
+
+BO_ 768 ObstacleSensorsA: 8 TorcsCar
+ SG_ ObstacleSensor0 : 0|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ ObstacleSensor1 : 8|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ ObstacleSensor2 : 16|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ ObstacleSensor3 : 24|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ ObstacleSensor4 : 32|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ ObstacleSensor5 : 40|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ ObstacleSensor6 : 48|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ ObstacleSensor7 : 56|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+
+BO_ 769 ObstacleSensorsB: 8 TorcsCar
+ SG_ ObstacleSensor8 : 0|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ ObstacleSensor9 : 8|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ ObstacleSensor10 : 16|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ ObstacleSensor11 : 24|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ ObstacleSensor12 : 32|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ ObstacleSensor13 : 40|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ ObstacleSensor14 : 48|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ ObstacleSensor15 : 56|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+
+BO_ 770 ObstacleSensorsC: 8 TorcsCar
+ SG_ ObstacleSensor16 : 0|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ ObstacleSensor17 : 8|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ ObstacleSensor18 : 16|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ ObstacleSensor19 : 24|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ ObstacleSensor20 : 32|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ ObstacleSensor21 : 40|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ ObstacleSensor22 : 48|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ ObstacleSensor23 : 56|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+
+BO_ 771 ObstacleSensorsD: 8 TorcsCar
+ SG_ ObstacleSensor24 : 0|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ ObstacleSensor25 : 8|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ ObstacleSensor26 : 16|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ ObstacleSensor27 : 24|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ ObstacleSensor28 : 32|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ ObstacleSensor29 : 40|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ ObstacleSensor30 : 48|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ ObstacleSensor31 : 56|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+
+BO_ 772 ObstacleSensorsE: 8 TorcsCar
+ SG_ ObstacleSensor32 : 0|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ ObstacleSensor33 : 8|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ ObstacleSensor34 : 16|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ ObstacleSensor35 : 24|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+
+BO_ 1280 TrackSensorsA: 8 TorcsCar
+ SG_ TrackSensor0 : 0|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ TrackSensor1 : 8|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ TrackSensor2 : 16|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ TrackSensor3 : 24|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ TrackSensor4 : 32|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ TrackSensor5 : 40|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ TrackSensor6 : 48|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ TrackSensor7 : 56|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+
+BO_ 1281 TrackSensorsB: 8 TorcsCar
+ SG_ TrackSensor8 : 0|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ TrackSensor9 : 8|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ TrackSensor10 : 16|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ TrackSensor11 : 24|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ TrackSensor12 : 32|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ TrackSensor13 : 40|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ TrackSensor14 : 48|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ TrackSensor15 : 56|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+
+BO_ 1282 TrackSensorsC: 8 TorcsCar
+ SG_ TrackSensor16 : 0|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ TrackSensor17 : 8|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ TrackSensor18 : 16|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+
+BO_ 128 PlayerControls: 8 TorcsCar
+ SG_ Steer : 0|8@1+ (0.008,-1) [-1|1] "m" Vector__XXX
+ SG_ Accel : 8|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ Brake : 16|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+ SG_ Gear : 24|8@1+ (1,0) [0|7] "m" Vector__XXX
+ SG_ Clutch : 32|8@1+ (0.004,0) [0|1] "m" Vector__XXX
+
+SIG_VALTYPE_ 1024 FuelLevel : 0;
+SIG_VALTYPE_ 1024 Gear : 0;
+SIG_VALTYPE_ 1024 EngineSpeed : 0;
+SIG_VALTYPE_ 1025 Damage : 0;
+SIG_VALTYPE_ 1026 WheelSpin0 : 0;
+SIG_VALTYPE_ 1026 WheelSpin1 : 0;
+SIG_VALTYPE_ 1026 WheelSpin2 : 0;
+SIG_VALTYPE_ 1026 WheelSpin3 : 0;
+SIG_VALTYPE_ 1027 SpeedX : 0;
+SIG_VALTYPE_ 1027 SpeedY : 0;
+SIG_VALTYPE_ 1027 SpeedZ : 0;
+SIG_VALTYPE_ 1028 Position : 0;
+SIG_VALTYPE_ 1028 PositionZ : 1;
+SIG_VALTYPE_ 1029 Angle : 0;
+SIG_VALTYPE_ 1029 DistanceFromMiddle : 0;
+SIG_VALTYPE_ 1030 CurrentLapTime : 1;
+SIG_VALTYPE_ 1030 LastLapTime : 1;
+SIG_VALTYPE_ 1031 DistanceFromStartLine : 1;
+SIG_VALTYPE_ 1031 CurrentDistanceRaced : 1;
+SIG_VALTYPE_ 768 ObstacleSensor0 : 0;
+SIG_VALTYPE_ 768 ObstacleSensor1 : 0;
+SIG_VALTYPE_ 768 ObstacleSensor2 : 0;
+SIG_VALTYPE_ 768 ObstacleSensor3 : 0;
+SIG_VALTYPE_ 768 ObstacleSensor4 : 0;
+SIG_VALTYPE_ 768 ObstacleSensor5 : 0;
+SIG_VALTYPE_ 768 ObstacleSensor6 : 0;
+SIG_VALTYPE_ 768 ObstacleSensor7 : 0;
+SIG_VALTYPE_ 769 ObstacleSensor8 : 0;
+SIG_VALTYPE_ 769 ObstacleSensor9 : 0;
+SIG_VALTYPE_ 769 ObstacleSensor10 : 0;
+SIG_VALTYPE_ 769 ObstacleSensor11 : 0;
+SIG_VALTYPE_ 769 ObstacleSensor12 : 0;
+SIG_VALTYPE_ 769 ObstacleSensor13 : 0;
+SIG_VALTYPE_ 769 ObstacleSensor14 : 0;
+SIG_VALTYPE_ 769 ObstacleSensor15 : 0;
+SIG_VALTYPE_ 770 ObstacleSensor16 : 0;
+SIG_VALTYPE_ 770 ObstacleSensor17 : 0;
+SIG_VALTYPE_ 770 ObstacleSensor18 : 0;
+SIG_VALTYPE_ 770 ObstacleSensor19 : 0;
+SIG_VALTYPE_ 770 ObstacleSensor20 : 0;
+SIG_VALTYPE_ 770 ObstacleSensor21 : 0;
+SIG_VALTYPE_ 770 ObstacleSensor22 : 0;
+SIG_VALTYPE_ 770 ObstacleSensor23 : 0;
+SIG_VALTYPE_ 771 ObstacleSensor24 : 0;
+SIG_VALTYPE_ 771 ObstacleSensor25 : 0;
+SIG_VALTYPE_ 771 ObstacleSensor26 : 0;
+SIG_VALTYPE_ 771 ObstacleSensor27 : 0;
+SIG_VALTYPE_ 771 ObstacleSensor28 : 0;
+SIG_VALTYPE_ 771 ObstacleSensor29 : 0;
+SIG_VALTYPE_ 771 ObstacleSensor30 : 0;
+SIG_VALTYPE_ 771 ObstacleSensor31 : 0;
+SIG_VALTYPE_ 772 ObstacleSensor32 : 0;
+SIG_VALTYPE_ 772 ObstacleSensor33 : 0;
+SIG_VALTYPE_ 772 ObstacleSensor34 : 0;
+SIG_VALTYPE_ 772 ObstacleSensor35 : 0;
+SIG_VALTYPE_ 1280 TrackSensor0 : 0;
+SIG_VALTYPE_ 1280 TrackSensor1 : 0;
+SIG_VALTYPE_ 1280 TrackSensor2 : 0;
+SIG_VALTYPE_ 1280 TrackSensor3 : 0;
+SIG_VALTYPE_ 1280 TrackSensor4 : 0;
+SIG_VALTYPE_ 1280 TrackSensor5 : 0;
+SIG_VALTYPE_ 1280 TrackSensor6 : 0;
+SIG_VALTYPE_ 1280 TrackSensor7 : 0;
+SIG_VALTYPE_ 1281 TrackSensor8 : 0;
+SIG_VALTYPE_ 1281 TrackSensor9 : 0;
+SIG_VALTYPE_ 1281 TrackSensor10 : 0;
+SIG_VALTYPE_ 1281 TrackSensor11 : 0;
+SIG_VALTYPE_ 1281 TrackSensor12 : 0;
+SIG_VALTYPE_ 1281 TrackSensor13 : 0;
+SIG_VALTYPE_ 1281 TrackSensor14 : 0;
+SIG_VALTYPE_ 1281 TrackSensor15 : 0;
+SIG_VALTYPE_ 1282 TrackSensor16 : 0;
+SIG_VALTYPE_ 1282 TrackSensor17 : 0;
+SIG_VALTYPE_ 1282 TrackSensor18 : 0;
+SIG_VALTYPE_ 128 Steer : 0;
+SIG_VALTYPE_ 128 Accel : 0;
+SIG_VALTYPE_ 128 Brake : 0;
+SIG_VALTYPE_ 128 Gear : 0;
+SIG_VALTYPE_ 128 Clutch : 0;
