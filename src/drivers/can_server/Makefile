@@ -13,6 +13,9 @@
 #
 ##############################################################################
 
+dbc_funcs.h dbc_funcs.c: dbc_funcs.dbc
+	dbcc -o . dbc_funcs.dbc
+
 ROBOT       = can_server
 MODULE      = ${ROBOT}.so
 MODULEDIR   = drivers/${ROBOT}
@@ -27,4 +30,3 @@ src-robots-can_server_PKGFILES = $(shell find * -maxdepth 0 -type f -print)
 src-robots-can_server_PKGDIR   = ${PACKAGE}-${VERSION}/$(subst ${TORCS_BASE},,$(shell pwd))
 
 include ${MAKE_DEFAULT}
-

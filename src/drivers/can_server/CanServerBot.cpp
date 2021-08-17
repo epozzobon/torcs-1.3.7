@@ -20,6 +20,9 @@
 #include "CanServerBot.h"
 #include "InputManager.h"
 
+#define NBWHEELS 4
+#define NBTRACKSENSORS 19
+#define NBOBSTACLESENSORS 36
 
 #define CAN_BUS_SENSORS 0
 #define CAN_BUS_CONTROL 1
@@ -28,11 +31,11 @@
 #define NB_CAN_ID_SENSOR 16
 #define NB_CAN_ID_CONTROL 1
 
-double __SENSORS_RANGE__;
+static double __SENSORS_RANGE__;
 
 static const canid_t can_tx_msgboxes_ids_sensor[NB_CAN_ID_SENSOR] = {
     0x400, 0x401, 0x402, 0x403, 0x404, 0x405, 0x406, 0x407,
-    0x300, 0x301, 0x302, 0x303, 0x304, 0x500, 0x501, 0x502
+    0x300, 0x301, 0x302, 0x303, 0x304, 0x500, 0x501, 0x502,
 };
 
 static const canid_t can_tx_msgboxes_ids_control[NB_CAN_ID_CONTROL] = {
@@ -48,9 +51,7 @@ static int cansend(int socket, canid_t identifier, const void *data, size_t size
 static int canpoll(int socket, can_frame *output);
 static float clampf(float x, float m, float M);
 
-
 CanServerBot::CanServerBot() {
-    
 }
 
 void CanServerBot::initTrack(tTrack* track, void *carHandle, void **carParmHandle, tSituation *s) {
@@ -104,9 +105,10 @@ void CanServerBot::newrace(tCarElt* car, tSituation *s) {
     // Initialization of track sensors
     this->trackSens = new Sensors(car, NBTRACKSENSORS);
     for (int i = 0; i < NBTRACKSENSORS; ++i) {
-    	this->trackSens->setSensor(i,this->trackSensAngle[i],__SENSORS_RANGE__);
+        double trackSensAngle = -90 + 10.0*i;
+    	this->trackSens->setSensor(i,trackSensAngle,__SENSORS_RANGE__);
 #ifdef __CAN_SERVER_VERBOSE__
-    	std::cout << "Set Track Sensors " << i+1 << " at angle " << this->trackSensAngle[i] << std::endl;
+    	std::cout << "Set Track Sensors " << i+1 << " at angle " << trackSensAngle << std::endl;
 #endif
 	}
     // Initialization of opponents sensors
@@ -118,28 +120,24 @@ void CanServerBot::newrace(tCarElt* car, tSituation *s) {
 void CanServerBot::drive(tCarElt* car, tSituation *s) {
     this->total_tics++;
 
-    static float analogInputs[4] = {0, 0, 0, 0};
-    static uint8_t currentGear = 0;
-    static bool gearWasSwitching = false;
     InputManager *inp = InputManager::getInstance();
+    float steerPressed = (float) inp->isKeyDown('a') - (float) inp->isKeyDown('d');
+    float upPressed    = (float) inp->isKeyDown('w');
+    float downPressed  = (float) inp->isKeyDown('s');
+    float spacePressed = (float) inp->isKeyDown(' ');
 
-    float steerPressed = (inp->isKeyDown('d') ? -1.0f : 0.0f)
-                       + (inp->isKeyDown('a') ? 1.0f : 0.0f);
-    float upPressed    = inp->isKeyDown('w') ? 1.0f : 0.0f;
-    float downPressed  = inp->isKeyDown('s') ? 1.0f : 0.0f;
-    float spacePressed = inp->isKeyDown(' ') ? 1.0f : 0.0f;
-    analogInputs[0] = clampf(analogInputs[0] * 0.8f + steerPressed * 0.25f, -1.0f, 1.0f);
-    analogInputs[1] = clampf(analogInputs[1] * 0.8f + upPressed    * 0.2f + (upPressed    - 0.5f) * 0.1f,  0.0f, 1.0f);
-    analogInputs[2] = clampf(analogInputs[2] * 0.8f + downPressed  * 0.2f + (downPressed  - 0.5f) * 0.1f,  0.0f, 1.0f);
-    analogInputs[3] = clampf(analogInputs[3] * 0.8f + spacePressed * 0.2f + (spacePressed - 0.5f) * 0.1f,  0.0f, 1.0f);
+    this->steerInput = clampf(this->steerInput * 0.8f + steerPressed * 0.25f, -1.0f, 1.0f);
+    this->accelInput = clampf(this->accelInput * 0.8f + upPressed    * 0.2f + (upPressed    - 0.5f) * 0.1f,  0.0f, 1.0f);
+    this->brakeInput = clampf(this->brakeInput * 0.8f + downPressed  * 0.2f + (downPressed  - 0.5f) * 0.1f,  0.0f, 1.0f);
+    this->clutchInput = clampf(this->clutchInput * 0.8f + spacePressed * 0.2f + (spacePressed - 0.5f) * 0.1f,  0.0f, 1.0f);
 
     bool gearUpPressed    = inp->isKeyDown('e');
     bool gearDownPressed  = inp->isKeyDown('q');
     if (!gearWasSwitching) {
         if (gearUpPressed) {
-            currentGear = (currentGear + 1) & 0x7;
+            this->gearInput = (this->gearInput + 1) & 0x7;
         } else if (gearDownPressed) {
-            currentGear = (currentGear - 1) & 0x7;
+            this->gearInput = (this->gearInput - 1) & 0x7;
         }
     }
     gearWasSwitching = gearUpPressed || gearDownPressed;
@@ -157,14 +155,16 @@ void CanServerBot::drive(tCarElt* car, tSituation *s) {
         this->trackSens->sensors_update();
 		for (int i = 0; i < NBTRACKSENSORS; ++i)
         {
-            trackSensorOut[i] = this->trackSens->getSensorOut(i);
+            trackSensorOut[i] = (this->trackSens->getSensorOut(i) / __SENSORS_RANGE__);
+            if (trackSensorOut[i] < -1) trackSensorOut[i] = -1;
+            if (trackSensorOut[i] > 1) trackSensorOut[i] = 1;
         }
     }
     else
     {
         for (int i = 0; i < NBTRACKSENSORS; ++i)
         {
-            trackSensorOut[i] = -1;
+            trackSensorOut[i] = 0;
         }
     }
 
@@ -276,34 +276,31 @@ void CanServerBot::drive(tCarElt* car, tSituation *s) {
         encode_can_0x502_TrackSensor16(o, trackSensorOut[16]);
         encode_can_0x502_TrackSensor17(o, trackSensorOut[17]);
         encode_can_0x502_TrackSensor18(o, trackSensorOut[18]);
-        encode_can_0x080_Steer(o, analogInputs[0]);
-        encode_can_0x080_Accel(o, analogInputs[1]);
-        encode_can_0x080_Brake(o, analogInputs[2]);
-        encode_can_0x080_Clutch(o, analogInputs[3]);
-        encode_can_0x080_Gear(o, currentGear);
+        encode_can_0x080_Steer(o, this->steerInput);
+        encode_can_0x080_Accel(o, this->accelInput);
+        encode_can_0x080_Brake(o, this->brakeInput);
+        encode_can_0x080_Clutch(o, this->clutchInput);
+        encode_can_0x080_Gear(o, this->gearInput);
     }
 
-    if (this->RESTARTING==0)
-    {
 #ifdef __CAN_SERVER_VERBOSE__
-        std::cout << "Sending: " << line << std::endl;
+    std::cout << "Sending: " << line << std::endl;
 #endif
 
-        double accel, brake, clutch, steer;
-        uint8_t gear;
+    double accel, brake, clutch, steer;
+    uint8_t gear;
 
-        decode_can_0x080_Accel(o, &accel);
-        decode_can_0x080_Brake(o, &brake);
-        decode_can_0x080_Clutch(o, &clutch);
-        decode_can_0x080_Steer(o, &steer);
-        decode_can_0x080_Gear(o, &gear);
+    decode_can_0x080_Accel(o, &accel);
+    decode_can_0x080_Brake(o, &brake);
+    decode_can_0x080_Clutch(o, &clutch);
+    decode_can_0x080_Steer(o, &steer);
+    decode_can_0x080_Gear(o, &gear);
 
-        car->_brakeCmd = brake;
-        car->_accelCmd = accel;
-        car->_clutchCmd = clutch;
-        car->_steerCmd = steer;
-        car->_gearCmd = "\x00\x01\x02\x03\x04\x05\x06\xff"[gear & 7];
-    }
+    car->_brakeCmd = brake;
+    car->_accelCmd = accel;
+    car->_clutchCmd = clutch;
+    car->_steerCmd = steer;
+    car->_gearCmd = "\x00\x01\x02\x03\x04\x05\x06\xff"[gear & 7];
 
     if (this->can_update()) {
         std::cout <<
@@ -316,7 +313,6 @@ void CanServerBot::drive(tCarElt* car, tSituation *s) {
 }
 
 void CanServerBot::endrace(tCarElt *car, tSituation *s) {
-    this->RESTARTING=0;
     if (trackSens != NULL)
     {
         delete this->trackSens;
@@ -331,17 +327,9 @@ void CanServerBot::endrace(tCarElt *car, tSituation *s) {
 }
 
 void CanServerBot::shutdown() {
-    if (this->RESTARTING!=1)
-    {
-        if (cansend(this->canSocket[CAN_BUS_SENSORS], 0x100, "shutdown", 8) < 0)
-            std::cerr << "Error: cannot send shutdown message";
+    if (cansend(this->canSocket[CAN_BUS_SENSORS], 0x100, "shutdown", 8) < 0) {
+        std::cerr << "Error: cannot send shutdown message";
     }
-    else
-    {
-        if (cansend(this->canSocket[CAN_BUS_SENSORS], 0x101, "restart", 7) < 0)
-            std::cerr << "Error: cannot send restart message";
-    }
-    this->RESTARTING=0;
     if (this->trackSens != NULL)
     {
         delete this->trackSens;
@@ -360,32 +348,34 @@ void CanServerBot::shutdown() {
 int CanServerBot::can_update() {
     int total_messages = 0;
     int s;
+    uint64_t x;
+    can_frame frame;
     can_obj_dbc_funcs_h_t *o = &this->can_obj_dbc_funcs;
 
     s = this->canSocket[CAN_BUS_SENSORS];
     for (int i = 0; i < NB_CAN_ID_SENSOR; i++) {
-        uint64_t x;
-        pack_message(o, can_tx_msgboxes_ids_sensor[i], &x);
-        cansend(s, can_tx_msgboxes_ids_sensor[i], &x, 8);
+        if (0 <= pack_message(o, can_tx_msgboxes_ids_sensor[i], &x)) {
+            cansend(s, can_tx_msgboxes_ids_sensor[i], &x, 8);
+        }
     }
 
     s = this->canSocket[CAN_BUS_CTRLOUT];
     for (int i = 0; i < NB_CAN_ID_CONTROL; i++) {
-        uint64_t x;
-        pack_message(o, can_tx_msgboxes_ids_control[i], &x);
-        cansend(s, can_tx_msgboxes_ids_control[i], &x, 8);
+        if (0 <= pack_message(o, can_tx_msgboxes_ids_control[i], &x)) {
+            cansend(s, can_tx_msgboxes_ids_control[i], &x, 8);
+        }
     }
 
-    can_frame frame;
-    while (0 < canpoll(this->canSocket[CAN_BUS_CONTROL], &frame))
+    s = this->canSocket[CAN_BUS_CONTROL];
+    while (0 < canpoll(s, &frame))
     {
         total_messages++;
         // Set controls command and store them in variables
         unpack_message(o, frame.can_id, *(uint64_t *) &frame.data, frame.len, 0);
     }
+
     return total_messages;
 }
-
 
 static int cansend(int socket, canid_t identifier, const void *data, size_t size)
 {

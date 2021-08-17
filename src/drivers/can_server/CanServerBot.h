@@ -4,16 +4,11 @@
 #include "ObstacleSensors.h"
 
 
-#define NBWHEELS 4
 #define NBBUSES 3
-#define NBTRACKSENSORS 19
-#define NBOBSTACLESENSORS 36
 
 
 class CanServerBot {
 private:
-    int RESTARTING;
-
     tTrack *curTrack;
     tRobotItf *robot;
     tdble prevDist;
@@ -22,8 +17,14 @@ private:
     int canSocket[NBBUSES];
     Sensors *trackSens;
     ObstacleSensors *oppSens;
-    float trackSensAngle[NBTRACKSENSORS];
     unsigned long total_tics;
+
+    // Input variables
+    float steerInput=0, accelInput=0, brakeInput=0, clutchInput=0;
+    uint8_t gearInput = 0;
+    bool gearWasSwitching = false;
+
+    // Private methods
     int can_update();
 
 public:
