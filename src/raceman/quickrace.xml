@@ -59,10 +59,10 @@
   <section name="Drivers">
     <attnum name="maximum number" val="40"/>
     <attnum name="focused idx" val="0"/>
-    <attstr name="focused module" val="scr_server"/>
+    <attstr name="focused module" val="can_server"/>
     <section name="1">
       <attnum name="idx" val="0"/>
-      <attstr name="module" val="scr_server"/>
+      <attstr name="module" val="can_server"/>
     </section>
 
   </section>

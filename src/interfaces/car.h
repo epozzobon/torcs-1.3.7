@@ -348,9 +348,6 @@ typedef struct {
     tdble	clutchCmd;  /**< Clutch command [0.0, 1.0] */
     int		gear;  	    /**< [-1,6] for gear selection */
     int		raceCmd;    /**< command issued by the driver */
-    int     focusCmd;//ML Requested focus angle
-    tdble   focusCD;//ML Remaining CoolDown: the point in time when focus sensors can be read again
-
 #define RM_CMD_NONE		0	/**< No race command */
 #define RM_CMD_PIT_ASKED	1	/**< Race command: Pit asked */
     char	msg[4][32];     /**< 4 lines of 31 characters 0-1 from car 2-3 from race engine */
@@ -369,9 +366,6 @@ typedef struct {
 #define _msgCmd		ctrl.msg
 #define _msgColorCmd	ctrl.msgColor
 #define _lightCmd	ctrl.lightCmd
-
-#define _focusCmd   ctrl.focusCmd   //ML Focus angle desired by client [degrees]
-#define _focusCD    ctrl.focusCD    //ML Point of time when cooldown on focus sensors expires and sensors can be read again
 
 
 struct RobotItf;

@@ -50,6 +50,9 @@ int CanServerBot::init(tRobotItf *itf) {
 static int cansend(int socket, canid_t identifier, const void *data, size_t size);
 static int canpoll(int socket, can_frame *output);
 static float clampf(float x, float m, float M);
+template <typename T> int sgn(T val) {
+    return (T(0) < val) - (val < T(0));
+}
 
 CanServerBot::CanServerBot() {
 }
@@ -105,7 +108,7 @@ void CanServerBot::newrace(tCarElt* car, tSituation *s) {
     // Initialization of track sensors
     this->trackSens = new Sensors(car, NBTRACKSENSORS);
     for (int i = 0; i < NBTRACKSENSORS; ++i) {
-        double trackSensAngle = -90 + 10.0*i;
+        double trackSensAngle = -90 + 19.0*i;
     	this->trackSens->setSensor(i,trackSensAngle,__SENSORS_RANGE__);
 #ifdef __CAN_SERVER_VERBOSE__
     	std::cout << "Set Track Sensors " << i+1 << " at angle " << trackSensAngle << std::endl;
@@ -125,14 +128,14 @@ void CanServerBot::drive(tCarElt* car, tSituation *s) {
     float upPressed    = (float) inp->isKeyDown('w');
     float downPressed  = (float) inp->isKeyDown('s');
     float spacePressed = (float) inp->isKeyDown(' ');
-
-    this->steerInput = clampf(this->steerInput * 0.8f + steerPressed * 0.25f, -1.0f, 1.0f);
-    this->accelInput = clampf(this->accelInput * 0.8f + upPressed    * 0.2f + (upPressed    - 0.5f) * 0.1f,  0.0f, 1.0f);
-    this->brakeInput = clampf(this->brakeInput * 0.8f + downPressed  * 0.2f + (downPressed  - 0.5f) * 0.1f,  0.0f, 1.0f);
-    this->clutchInput = clampf(this->clutchInput * 0.8f + spacePressed * 0.2f + (spacePressed - 0.5f) * 0.1f,  0.0f, 1.0f);
-
     bool gearUpPressed    = inp->isKeyDown('e');
     bool gearDownPressed  = inp->isKeyDown('q');
+
+    this->accelInput  = clampf(this->accelInput  + sgn(upPressed - this->accelInput) * 0.1f,  0.0f, 1.0f);
+    this->brakeInput  = clampf(this->brakeInput  + sgn(downPressed - this->brakeInput) * 0.1f,  0.0f, 1.0f);
+    this->steerInput  = clampf(this->steerInput  + sgn(steerPressed - this->steerInput) * 0.1f, -1.0f, 1.0f);
+    this->clutchInput = clampf(this->clutchInput + sgn(spacePressed - this->clutchInput) * 0.1f,  0.0f, 1.0f);
+
     if (!gearWasSwitching) {
         if (gearUpPressed) {
             this->gearInput = (this->gearInput + 1) & 0x7;
@@ -155,16 +158,16 @@ void CanServerBot::drive(tCarElt* car, tSituation *s) {
         this->trackSens->sensors_update();
 		for (int i = 0; i < NBTRACKSENSORS; ++i)
         {
-            trackSensorOut[i] = (this->trackSens->getSensorOut(i) / __SENSORS_RANGE__);
-            if (trackSensorOut[i] < -1) trackSensorOut[i] = -1;
-            if (trackSensorOut[i] > 1) trackSensorOut[i] = 1;
+            trackSensorOut[i] = this->trackSens->getSensorOut(i);
+            if (trackSensorOut[i] < -100) trackSensorOut[i] = -100;
+            if (trackSensorOut[i] > 100) trackSensorOut[i] = 100;
         }
     }
     else
     {
         for (int i = 0; i < NBTRACKSENSORS; ++i)
         {
-            trackSensorOut[i] = 0;
+            trackSensorOut[i] = -127;
         }
     }
 
@@ -302,14 +305,7 @@ void CanServerBot::drive(tCarElt* car, tSituation *s) {
     car->_steerCmd = steer;
     car->_gearCmd = "\x00\x01\x02\x03\x04\x05\x06\xff"[gear & 7];
 
-    if (this->can_update()) {
-        std::cout <<
-            car->_accelCmd << " " <<
-            car->_brakeCmd << " " <<
-            car->_gearCmd << " " <<
-            car->_steerCmd << " " <<
-            car->_clutchCmd << std::endl;
-    }
+    this->can_update();
 }
 
 void CanServerBot::endrace(tCarElt *car, tSituation *s) {
