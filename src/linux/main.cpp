@@ -28,13 +28,6 @@
 #include <raceinit.h>
 
 
-#include <sys/shm.h> 
-#define image_width 640
-#define image_height 480
-#include <iostream> 
-#include <unistd.h> 
-
-
 extern bool bKeepModules;
 
 static void
@@ -147,23 +140,6 @@ init_args(int argc, char **argv, const char **raceconfig)
 #endif
 }
 
-struct shared_use_st  
-{  
-    int written;
-    uint8_t data[image_width*image_height*3];
-    int pause;
-    int zmq_flag;   
-    int save_flag;  
-};
-
-int* pwritten = NULL;
-uint8_t* pdata = NULL;
-int* ppause = NULL;
-int* pzmq_flag = NULL;
-int* psave_flag = NULL;
-
-void *shm = NULL;
-
 /*
  * Function
  *	main
@@ -183,37 +159,6 @@ void *shm = NULL;
 int
 main(int argc, char *argv[])
 {
-	struct shared_use_st *shared = NULL;
-    int shmid; 
-    // establish memory sharing 
-    shmid = shmget((key_t)1234, sizeof(struct shared_use_st), 0666|IPC_CREAT);  
-    if(shmid == -1)  
-    {  
-        fprintf(stderr, "shmget failed\n");  
-        exit(EXIT_FAILURE);  
-    }  
-  
-    shm = shmat(shmid, 0, 0);  
-    if(shm == (void*)-1)  
-    {  
-        fprintf(stderr, "shmat failed\n");  
-        exit(EXIT_FAILURE);  
-    }  
-    printf("\n********** Memory sharing started, attached at %X **********\n \n", shm);  
-    // set up shared memory 
-    shared = (struct shared_use_st*)shm;  
-    shared->written = 0;
-    shared->pause = 0;
-    shared->zmq_flag = 0;  
-    shared->save_flag = 0;
-
- 
-    pwritten=&shared->written;
-    pdata=shared->data;
-    ppause=&shared->pause;
-    pzmq_flag = &shared->zmq_flag;
-	psave_flag = &shared->save_flag;
-
 	const char *raceconfig = "";
 
 	init_args(argc, argv, &raceconfig);

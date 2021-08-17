@@ -638,11 +638,6 @@ ReRaceRules(tCarElt *car)
 		}
 	}
 }
-extern int* pwritten;
-extern uint8_t* pdata;
-extern int* ppause;
-extern int* pzmq_flag;
-extern int* psave_flag;
 
 int count=0;
 
@@ -650,24 +645,6 @@ int count=0;
 static void
 ReOneStep(double deltaTimeIncrement)
 {
-
-	if (*ppause == 1) 
-     { 
-        count++;
-        if (count>50) // 10FPS
-        {
-           count=1;
-
-           glReadPixels(0, 0, image_width, image_height, GL_RGB, GL_UNSIGNED_BYTE, (GLvoid*)pdata);
-
-           *pwritten=1;
-
-           double t = GfTimeClock();
-           if ((t - ReInfo->_reCurTime) > 30*RCM_MAX_DT_SIMU)
-               ReInfo->_reCurTime = t - RCM_MAX_DT_SIMU;
-        }       
-    }
-
     int i;
 	tRobotItf *robot;
 	tSituation *s = ReInfo->s;
