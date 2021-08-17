@@ -16,7 +16,7 @@
 ROBOT       = can_server
 MODULE      = ${ROBOT}.so
 MODULEDIR   = drivers/${ROBOT}
-SOURCES     = ${ROBOT}.cpp sensors.cpp ObstacleSensors.cpp dbc_funcs.c
+SOURCES     = ${ROBOT}.cpp sensors.cpp ObstacleSensors.cpp dbc_funcs.c CanServerBot.cpp InputManager.cpp
 
 SHIPDIR     = drivers/${ROBOT}
 SHIP        = ${ROBOT}.xml 
