@@ -202,9 +202,8 @@ void CanServerBot::drive(tCarElt* car, tSituation *s) {
 
     this->distRaced += curDistRaced;
 
-
-    can_obj_dbc_funcs_h_t *o = &this->can_obj_dbc_funcs;
     {
+        can_obj_dbc_funcs_h_t *o = &this->can_obj_sensor_sender;
         encode_can_0x401_Damage(o, getDamageLimit() ? car->_dammage : car->_fakeDammage);
         encode_can_0x405_DistanceFromMiddle(o, clampf(dist_to_middle, -1.0f, 1.0f));
         encode_can_0x405_Angle(o, angle);
@@ -279,6 +278,10 @@ void CanServerBot::drive(tCarElt* car, tSituation *s) {
         encode_can_0x502_TrackSensor16(o, trackSensorOut[16]);
         encode_can_0x502_TrackSensor17(o, trackSensorOut[17]);
         encode_can_0x502_TrackSensor18(o, trackSensorOut[18]);
+    }
+
+    {
+        can_obj_dbc_funcs_h_t *o = &this->can_obj_control_sender;
         encode_can_0x080_Steer(o, this->steerInput);
         encode_can_0x080_Accel(o, this->accelInput);
         encode_can_0x080_Brake(o, this->brakeInput);
@@ -293,11 +296,14 @@ void CanServerBot::drive(tCarElt* car, tSituation *s) {
     double accel, brake, clutch, steer;
     uint8_t gear;
 
-    decode_can_0x080_Accel(o, &accel);
-    decode_can_0x080_Brake(o, &brake);
-    decode_can_0x080_Clutch(o, &clutch);
-    decode_can_0x080_Steer(o, &steer);
-    decode_can_0x080_Gear(o, &gear);
+    {
+        can_obj_dbc_funcs_h_t *o = &this->can_obj_control_receiver;
+        decode_can_0x080_Accel(o, &accel);
+        decode_can_0x080_Brake(o, &brake);
+        decode_can_0x080_Clutch(o, &clutch);
+        decode_can_0x080_Steer(o, &steer);
+        decode_can_0x080_Gear(o, &gear);
+    }
 
     car->_brakeCmd = brake;
     car->_accelCmd = accel;
@@ -341,34 +347,30 @@ void CanServerBot::shutdown() {
     }
 }
 
-int CanServerBot::can_update() {
-    int total_messages = 0;
-    int s;
+static unsigned can_exchange_frames(can_obj_dbc_funcs_h_t *o, int s, const canid_t *msgboxes, unsigned msgboxes_count) {
     uint64_t x;
     can_frame frame;
-    can_obj_dbc_funcs_h_t *o = &this->can_obj_dbc_funcs;
-
-    s = this->canSocket[CAN_BUS_SENSORS];
-    for (int i = 0; i < NB_CAN_ID_SENSOR; i++) {
-        if (0 <= pack_message(o, can_tx_msgboxes_ids_sensor[i], &x)) {
-            cansend(s, can_tx_msgboxes_ids_sensor[i], &x, 8);
-        }
-    }
-
-    s = this->canSocket[CAN_BUS_CTRLOUT];
-    for (int i = 0; i < NB_CAN_ID_CONTROL; i++) {
+    unsigned total_messages = 0;
+    for (int i = 0; i < msgboxes_count; i++) {
         if (0 <= pack_message(o, can_tx_msgboxes_ids_control[i], &x)) {
-            cansend(s, can_tx_msgboxes_ids_control[i], &x, 8);
+            cansend(s, msgboxes[i], &x, 8);
         }
     }
-
-    s = this->canSocket[CAN_BUS_CONTROL];
     while (0 < canpoll(s, &frame))
     {
         total_messages++;
         // Set controls command and store them in variables
         unpack_message(o, frame.can_id, *(uint64_t *) &frame.data, frame.len, 0);
     }
+    return total_messages;
+}
+
+int CanServerBot::can_update() {
+    unsigned total_messages = 0;
+
+    total_messages += can_exchange_frames(&this->can_obj_sensor_sender, this->canSocket[CAN_BUS_SENSORS], can_tx_msgboxes_ids_sensor, NB_CAN_ID_SENSOR);
+    total_messages += can_exchange_frames(&this->can_obj_control_sender, this->canSocket[CAN_BUS_CTRLOUT], can_tx_msgboxes_ids_control, NB_CAN_ID_CONTROL);
+    total_messages += can_exchange_frames(&this->can_obj_control_receiver, this->canSocket[CAN_BUS_CONTROL], NULL, 0);
 
     return total_messages;
 }

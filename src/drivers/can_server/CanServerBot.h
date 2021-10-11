@@ -13,7 +13,9 @@ private:
     tRobotItf *robot;
     tdble prevDist;
     tdble distRaced;
-    can_obj_dbc_funcs_h_t can_obj_dbc_funcs;
+    can_obj_dbc_funcs_h_t can_obj_control_sender;
+    can_obj_dbc_funcs_h_t can_obj_control_receiver;
+    can_obj_dbc_funcs_h_t can_obj_sensor_sender;
     int canSocket[NBBUSES];
     Sensors *trackSens;
     ObstacleSensors *oppSens;
