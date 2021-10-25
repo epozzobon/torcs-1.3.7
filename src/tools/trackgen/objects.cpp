@@ -304,7 +304,7 @@ ssgSaveLeaf (ssgEntity *ent, FILE *save_fd)
 	fprintf (save_fd, "numsurf %d\n", num_tris);
 
 	for (i = 0; i < num_tris; i++) {
-		fprintf (save_fd, surf);
+		fprintf (save_fd, "%s", surf);
 		fprintf (save_fd, "mat 0\n");
 		fprintf (save_fd, "refs 3\n");
 		fprintf (save_fd, "%d %g %g\n",

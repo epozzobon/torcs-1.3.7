@@ -103,7 +103,7 @@ void print_mat4(char *title, sgMat4 m)
 {
     int		i, j;
 
-    printf(title);
+    printf("%s", title);
     for (j = 0; j < 4; j ++){
 	for (i = 0; i < 4; i ++) {
 	    printf("%.6f  ", m[i][j]);
