@@ -352,7 +352,7 @@ static unsigned can_exchange_frames(can_obj_dbc_funcs_h_t *o, int s, const canid
     can_frame frame;
     unsigned total_messages = 0;
     for (int i = 0; i < msgboxes_count; i++) {
-        if (0 <= pack_message(o, can_tx_msgboxes_ids_control[i], &x)) {
+        if (0 <= pack_message(o, msgboxes[i], &x)) {
             cansend(s, msgboxes[i], &x, 8);
         }
     }
